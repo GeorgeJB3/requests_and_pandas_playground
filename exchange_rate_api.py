@@ -1,7 +1,8 @@
+import pyodbc
 import requests
 import pandas as pd
 import datetime as dt
-from config import EXCHANGE_RATE_API_KEY
+from config import EXCHANGE_RATE_API_KEY, DB_PASSWORD
 
 URL = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/latest/"
 
@@ -34,7 +35,40 @@ max_exchange_rate = df["exchange_rate"].max()
 print(f"Minimum exchange rate is {min_exchange_rate}")
 print(f"Maximum exchange rate is {max_exchange_rate}")
 
+# Export data to a CSV file to be uploaded to a T-SQL database
+df.to_csv("data/clean_exchange_rates.csv", index=False)
 
-print(df.head())
 
+# Run the below commands in Azure Data Studio to create a database and a table. Then bulk insert the data
 
+# -- -- Create a new database
+# -- CREATE DATABASE exchange_rate_DB;
+# -- GO
+
+# -- -- Enable advanced options and BULK INSERT
+# -- USE exchange_rate_DB;
+# -- GO
+
+# -- Create table if not exists
+# IF OBJECT_ID('exchange_rates', 'U') IS NULL
+# BEGIN
+#     CREATE TABLE exchange_rates (
+#         currency VARCHAR(10),
+#         exchange_rate FLOAT,
+#         exchange_rate_percent FLOAT,
+#         ingestion_timestamp DATETIME
+#     );
+# END
+# GO
+
+# -- Load the data from CSV
+# BULK INSERT exchange_rates
+# FROM '/var/opt/mssql/data/clean_exchange_rates.csv'
+# WITH (
+#     FIRSTROW = 2,
+#     FIELDTERMINATOR = ',',
+#     ROWTERMINATOR = '\n',
+#     TABLOCK,
+#     FORMAT = 'CSV'
+# );
+# GO
