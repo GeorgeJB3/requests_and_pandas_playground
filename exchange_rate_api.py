@@ -1,4 +1,3 @@
-import pyodbc
 import requests
 import pandas as pd
 import datetime as dt
@@ -6,37 +5,66 @@ from config import EXCHANGE_RATE_API_KEY, DB_PASSWORD
 
 URL = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/latest/"
 
-response = requests.get(f'{URL}GBP')
-response.raise_for_status()
+def retrieve_data(domain):
+    '''make the API call to retrieve required data'''
+    url = domain
+    response = requests.get(f'{url}GBP')
+    response.raise_for_status()
+    data = response.json()
+    return data
 
-data = response.json()
-tuple_data = data["conversion_rates"].items()
+def convert_to_dataframe(data):
+    '''Convert the api response to a pandas dataframe to begin the transformation stage of the pipeline '''
+    tuple_data = data["conversion_rates"].items()
+    df = pd.DataFrame(tuple_data, columns=['Currency', 'Rate'])
+    df = df.rename(columns={"Currency": "currency", "Rate": "exchange_rate"})
+    return df
 
-df = pd.DataFrame(tuple_data, columns=['Currency', 'Rate'])
+def check_for_nulls(dataframe):
+    '''Returns True if NULLs are present in the data. False if not'''
+    return dataframe.isna().values.any()
 
-df = df.rename(columns={"Currency": "currency", "Rate": "exchange_rate"})
+def check_for_duplicates(dataframe):
+    '''Returns True if duplicates are present in the data. False if not'''
+    return dataframe.duplicated().values.any()
 
-# check for NULL values in the data set - False
-print(f'Contains NULLs: {df.isna().values.any()}')
+def add_columns(dataframe):
+    '''
+    Add column for exhange rate percentage then round to 1 decimal place.
+    Add column for ingestion timestamp to keep track of each row being ingested
+    '''
+    df = dataframe
+    df["exchange_rate_%"] = df["exchange_rate"] * 100
+    df["exchange_rate_%"] = df["exchange_rate_%"].round(1)
+    df["ingestion_timestamp"] = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return df
 
-# check for duplicates in the data set - False
-print(f'Contains Duplicates: {df.duplicated().values.any()}')
+def find_lowest_and_highest_exchange_rate(dataframe):
+    ''' Finding the lowest and highest exchange rate '''
+    min_exchange_rate = dataframe["exchange_rate"].min()
+    max_exchange_rate = dataframe["exchange_rate"].max()
+    print(f"Minimum exchange rate is {min_exchange_rate}")
+    print(f"Maximum exchange rate is {max_exchange_rate}")
 
-# Add new column for rate % then round to 1 decimal place
-df["exchange_rate_%"] = df["exchange_rate"] * 100
-df["exchange_rate_%"] = df["exchange_rate_%"].round(1)
+def export_to_csv(dataframe, path):
+    ''' Export data to a CSV file to be uploaded to a T-SQL database '''
+    dataframe.to_csv(path, index=False)
 
-# Add an ingestion timestamp column so we know when the data was ingested
-df["ingestion_timestamp"] = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def run_pipeline():
+    '''execute all the functions to run the pipeline'''
+    data = retrieve_data(f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/latest/")
+    df = convert_to_dataframe(data)
+    if check_for_nulls(df):
+        df = df.drop_na()
+    if check_for_duplicates(df):
+        df = df.drop_duplicates()
+    add_columns(df)
+    find_lowest_and_highest_exchange_rate(df)
+    export_to_csv(df,"data/clean_exchange_rates.csv")
 
-min_exchange_rate = df["exchange_rate"].min()
-max_exchange_rate = df["exchange_rate"].max()
+run_pipeline()
 
-print(f"Minimum exchange rate is {min_exchange_rate}")
-print(f"Maximum exchange rate is {max_exchange_rate}")
 
-# Export data to a CSV file to be uploaded to a T-SQL database
-df.to_csv("data/clean_exchange_rates.csv", index=False)
 
 
 # Run the below commands in Azure Data Studio to create a database and a table. Then bulk insert the data
