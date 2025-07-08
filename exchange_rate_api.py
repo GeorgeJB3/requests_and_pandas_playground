@@ -1,14 +1,13 @@
 import requests
 import pandas as pd
 import datetime as dt
-from config import EXCHANGE_RATE_API_KEY, DB_PASSWORD
+from config import EXCHANGE_RATE_API_KEY
 
 URL = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/latest/"
 
 def retrieve_data(domain):
     '''make the API call to retrieve required data'''
-    url = domain
-    response = requests.get(f'{url}GBP')
+    response = requests.get(f'{domain}GBP')
     response.raise_for_status()
     data = response.json()
     return data
