@@ -4,7 +4,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import requests
 import pandas as pd
 import datetime as dt
-from config import EXCHANGE_RATE_API_KEY
+from config.exchange_rates_config import EXCHANGE_RATE_API_KEY
 
 
 URL = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/latest/"
@@ -63,4 +63,4 @@ def run_pipeline():
         df = df.drop_duplicates()
     add_columns(df)
     find_lowest_and_highest_exchange_rate(df)
-    export_to_csv(df,"../data/clean_exchange_rates.csv")
+    export_to_csv(df,"data/clean_exchange_rates.csv")
